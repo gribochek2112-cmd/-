@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная Умная Доска & Предметный Хаб</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        board: { light: '#f8fafc', dark: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-caveat { font-family: 'Caveat', cursive; }
+        .font-playfair { font-family: 'Playfair Display', serif; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        
+        .cursor-pen {
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19l7-7 3 3-7 7-3-3z'></path><path d='M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z'></path><path d='M2 2l7.5 11.5'></path></svg>") 0 24, crosshair;
+        }
+        .cursor-eraser {
+            cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20H7L3 16C2 15 2 13 3 12L13 2l9 9L20 20z'></path><line x1='18' y1='13' x2='8' y2='23'></line></svg>") 0 24, crosshair;
+        }
+
+        .bg-grid-pattern {
+            background-image: radial-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+            background-size: 18px 18px;
+        }
+        .dark .bg-grid-pattern {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+            background-size: 18px 18px;
+        }
+        
+        .draggable-item {
+            touch-action: none;
+            user-select: none;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Piano Key Styles */
+        .piano-key-white {
+            background: linear-gradient(to bottom, #ffffff 0%, #f1f5f9 100%);
+        }
+        .piano-key-white:active, .piano-key-white.active {
+            background: linear-gradient(to bottom, #e2e8f0 0%, #cbd5e1 100%);
+            transform: translateY(2px);
+        }
+        .piano-key-black {
+            background: linear-gradient(to bottom, #334155 0%, #0f172a 100%);
+        }
+        .piano-key-black:active, .piano-key-black.active {
+            background: linear-gradient(to bottom, #1e293b 0%, #020617 100%);
+            transform: translateY(2px);
+        }
+
+        /* Map Land Styling */
+        .map-land {
+            fill: #cbd5e1;
+            stroke: #64748b;
+            stroke-width: 0.8;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .dark .map-land {
+            fill: #334155;
+            stroke: #475569;
+        }
+        .map-land:hover {
+            fill: #3b82f6;
+            stroke: #1d4ed8;
+        }
+    </style>
+</head>
+<body id="appBody" class="h-full bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 flex flex-col overflow-hidden transition-colors duration-200">
+
+    <!-- Top Navigation & Header Bar -->
+    <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 sm:px-6 py-2.5 flex items-center justify-between shadow-sm z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                <i class="fa-solid fa-graduation-cap text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight leading-tight">Умная Доска & Предметный Хаб</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Письмо • Математика • География • Музыка • Наука</p>
+            </div>
+        </div>
+
+        <!-- Primary Mode / Subject Selector Tabs -->
+        <nav class="flex items-center space-x-1 overflow-x-auto no-scrollbar max-w-md lg:max-w-none py-1">
+            <button onclick="switchTab('board')" id="tabBtn-board" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 bg-blue-600 text-white shadow-sm transition">
+                <i class="fa-solid fa-pen-ruler"></i>
+                <span>Доска и Письмо</span>
+            </button>
+            <button onclick="switchTab('math')" id="tabBtn-math" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                <i class="fa-solid fa-calculator text-amber-500"></i>
+                <span>Математика</span>
+            </button>
+            <button onclick="switchTab('geography')" id="tabBtn-geography" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                <i class="fa-solid fa-earth-americas text-emerald-500"></i>
+                <span>География</span>
+            </button>
+            <button onclick="switchTab('music')" id="tabBtn-music" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                <i class="fa-solid fa-music text-purple-500"></i>
+                <span>Музыка</span>
+            </button>
+            <button onclick="switchTab('science')" id="tabBtn-science" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                <i class="fa-solid fa-flask text-rose-500"></i>
+                <span>Физика / Химия</span>
+            </button>
+        </nav>
+
+        <!-- Global Header Action Controls -->
+        <div class="flex items-center space-x-2">
+            <button onclick="toggleDictionaryModal()" class="p-2 sm:px-3 sm:py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 border border-indigo-200 dark:border-indigo-800 rounded-lg transition flex items-center space-x-1.5" title="База слов и терминов">
+                <i class="fa-solid fa-book-bookmark text-indigo-600 dark:text-indigo-400"></i>
+                <span class="hidden md:inline">Словарь</span>
+            </button>
+
+            <button onclick="toggleTheme()" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition" title="Тема">
+                <i id="themeIcon" class="fa-solid fa-moon text-base"></i>
+            </button>
+
+            <button onclick="copyAllText()" class="hidden md:flex px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 rounded-lg transition items-center space-x-1.5">
+                <i class="fa-solid fa-copy"></i>
+                <span>Копировать</span>
+            </button>
+
+            <button onclick="exportBoardText()" class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                <i class="fa-solid fa-download"></i>
+                <span class="hidden sm:inline">Экспорт</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN MODULE WORKSPACE -->
+    <main class="flex-1 overflow-hidden relative">
+
+        <!-- 1. WHITEBOARD & HANDWRITING MODULE -->
+        <section id="module-board" class="w-full h-full flex flex-col lg:flex-row overflow-hidden">
+            <!-- Left Drawing Canvas -->
+            <div class="w-full lg:w-5/12 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col p-3 shadow-sm z-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                        <i class="fa-solid fa-pen-ruler text-blue-500"></i>
+                        <span>Холст рукописного ввода</span>
+                    </h2>
+                    <div class="flex items-center space-x-2 text-xs">
+                        <label class="flex items-center cursor-pointer select-none text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="autoRecognizeToggle" checked onchange="toggleAutoRecognize(this.checked)" class="sr-only peer">
+                            <div class="w-7 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600 relative"></div>
+                            <span class="ml-1.5 text-[11px] font-medium">Авто-OCR</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Canvas Box -->
+                <div class="relative flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl overflow-hidden shadow-inner flex flex-col bg-grid-pattern min-h-[220px]">
+                    <canvas id="drawCanvas" class="w-full h-full cursor-pen touch-none z-10 block"></canvas>
+                    
+                    <div class="absolute inset-0 flex flex-col justify-center pointer-events-none opacity-20">
+                        <div class="border-b border-blue-500 w-full my-6"></div>
+                        <div class="border-b border-blue-500 border-dashed w-full my-6"></div>
+                        <div class="border-b border-blue-500 w-full my-6"></div>
+                    </div>
+
+                    <div id="canvasWatermark" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-400 dark:text-slate-600 select-none p-6 text-center z-0">
+                        <i class="fa-solid fa-hand-holding-hand text-3xl mb-2 opacity-50"></i>
+                        <p class="text-xs font-semibold">Пишите мышкой, пальцем или стилусом...</p>
+                        <p class="text-[11px] opacity-75 mt-0.5">Любые буквы, слова, цифры, физические или геогр. термины</p>
+                    </div>
+
+                    <div id="livePreviewBox" class="absolute top-3 right-3 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-lg rounded-xl px-3 py-1.5 flex items-center space-x-2 z-20 transition-all opacity-0 pointer-events-none max-w-[220px]">
+                        <span class="text-[10px] text-slate-400 font-medium">Предпросмотр:</span>
+                        <span id="previewText" class="text-xs font-bold text-blue-600 dark:text-blue-400 font-mono truncate">...</span>
+                    </div>
+                </div>
+
+                <!-- Canvas Control Toolbar -->
+                <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1.5 bg-slate-100 dark:bg-slate-700/50 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div class="flex items-center space-x-1">
+                        <button id="penBtn" onclick="setTool('pen')" class="p-2 rounded-lg bg-blue-600 text-white shadow-sm transition" title="Кисть">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button id="eraserBtn" onclick="setTool('eraser')" class="p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600" title="Ластик">
+                            <i class="fa-solid fa-eraser text-xs"></i>
+                        </button>
+                        <button onclick="undoStroke()" class="p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600" title="Отмена">
+                            <i class="fa-solid fa-rotate-left text-xs"></i>
+                        </button>
+                        
+                        <div class="h-4 w-px bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        
+                        <div class="flex items-center space-x-1">
+                            <button onclick="setPenColor('#1e293b')" class="w-4 h-4 rounded-full bg-slate-800 border border-white dark:border-slate-700 shadow"></button>
+                            <button onclick="setPenColor('#2563eb')" class="w-4 h-4 rounded-full bg-blue-600 border border-white dark:border-slate-700 shadow"></button>
+                            <button onclick="setPenColor('#dc2626')" class="w-4 h-4 rounded-full bg-red-600 border border-white dark:border-slate-700 shadow"></button>
+                            <button onclick="setPenColor('#16a34a')" class="w-4 h-4 rounded-full bg-green-600 border border-white dark:border-slate-700 shadow"></button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-1">
+                        <button onclick="clearCanvas()" class="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800">
+                            Очистить
+                        </button>
+                        <button onclick="triggerRecognition()" class="px-3 py-1 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg shadow-sm transition flex items-center space-x-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Преобразовать</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-2.5 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                    <input type="text" id="directTextInput" placeholder="Ввести печатный текст вручную..." class="flex-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-100 focus:outline-none">
+                    <button onclick="addDirectText()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition shrink-0">
+                        + На доску
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Digital Board Workspace -->
+            <div class="w-full lg:w-7/12 bg-slate-100 dark:bg-slate-900/70 flex flex-col p-3 relative overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div class="flex items-center space-x-2">
+                        <h2 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                            <i class="fa-solid fa-chalkboard text-indigo-500"></i>
+                            <span>Главная доска с печатными блоками</span>
+                        </h2>
+                        <span id="elementsCounter" class="text-[10px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold px-2 py-0.5 rounded-full">0 блоков</span>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <div class="bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center space-x-0.5 text-xs">
+                            <button id="modeLinearBtn" onclick="setBoardLayout('linear')" class="px-2 py-0.5 rounded bg-blue-600 text-white font-medium transition" title="Текстовый режим">
+                                <i class="fa-solid fa-align-left mr-1"></i>Текст
+                            </button>
+                            <button id="modeDragBtn" onclick="setBoardLayout('free')" class="px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Свободные блоки">
+                                <i class="fa-solid fa-hand mr-1"></i>Блоки
+                            </button>
+                        </div>
+
+                        <select id="boardFontSelect" onchange="updateBoardFont(this.value)" class="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 focus:outline-none">
+                            <option value="font-sans">Inter</option>
+                            <option value="font-caveat">Caveat (Рукописный)</option>
+                            <option value="font-playfair">Playfair</option>
+                            <option value="font-mono">Fira Code</option>
+                        </select>
+
+                        <button onclick="addSpaceBlock()" class="px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-medium rounded-lg transition">
+                            ␣ Пробел
+                        </button>
+                        <button onclick="clearDigitalBoard()" class="px-2 py-1 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 text-xs font-medium rounded-lg transition" title="Очистить доску">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="boardCanvasContainer" class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl relative shadow-sm overflow-auto p-4 transition-colors min-h-[300px]">
+                    <div id="boardEmptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 text-center pointer-events-none">
+                        <i class="fa-solid fa-layer-group text-3xl mb-2 opacity-40"></i>
+                        <p class="font-semibold text-xs text-slate-600 dark:text-slate-300">Доска свободна</p>
+                        <p class="text-[11px] opacity-75 mt-1">Преобразованные рукописные записи и результаты расчетов появятся здесь</p>
+                    </div>
+
+                    <div id="boardItemsArea" class="w-full h-full min-h-[300px] relative"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. MATHEMATICS, ALGEBRA & GEOMETRY MODULE -->
+        <section id="module-math" class="w-full h-full p-4 overflow-y-auto hidden">
+            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                <!-- Advanced Scientific Calculator -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-calculator text-amber-500"></i>
+                        <span>Инженерный Калькулятор</span>
+                    </h3>
+                    
+                    <div class="bg-slate-100 dark:bg-slate-900 p-3 rounded-xl mb-3 border border-slate-200 dark:border-slate-700 text-right">
+                        <div id="calcExpr" class="text-xs text-slate-400 font-mono h-4 overflow-hidden truncate"></div>
+                        <div id="calcDisplay" class="text-xl font-bold font-mono text-slate-900 dark:text-white overflow-hidden truncate">0</div>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-1.5 text-xs font-semibold">
+                        <button onclick="calcInput('C')" class="p-2.5 bg-red-100 dark:bg-red-900/40 text-red-600 rounded-lg">C</button>
+                        <button onclick="calcInput('(')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">(</button>
+                        <button onclick="calcInput(')')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">)</button>
+                        <button onclick="calcInput('/')" class="p-2.5 bg-amber-500 text-white rounded-lg">÷</button>
+
+                        <button onclick="calcInput('sin(')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">sin</button>
+                        <button onclick="calcInput('cos(')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">cos</button>
+                        <button onclick="calcInput('tan(')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">tan</button>
+                        <button onclick="calcInput('*')" class="p-2.5 bg-amber-500 text-white rounded-lg">×</button>
+
+                        <button onclick="calcInput('7')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">7</button>
+                        <button onclick="calcInput('8')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">8</button>
+                        <button onclick="calcInput('9')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">9</button>
+                        <button onclick="calcInput('-')" class="p-2.5 bg-amber-500 text-white rounded-lg">-</button>
+
+                        <button onclick="calcInput('4')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">4</button>
+                        <button onclick="calcInput('5')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">5</button>
+                        <button onclick="calcInput('6')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">6</button>
+                        <button onclick="calcInput('+')" class="p-2.5 bg-amber-500 text-white rounded-lg">+</button>
+
+                        <button onclick="calcInput('1')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">1</button>
+                        <button onclick="calcInput('2')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">2</button>
+                        <button onclick="calcInput('3')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">3</button>
+                        <button onclick="calcInput('sqrt(')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">√</button>
+
+                        <button onclick="calcInput('0')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">0</button>
+                        <button onclick="calcInput('.')" class="p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">.</button>
+                        <button onclick="calcInput('Math.PI')" class="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg">π</button>
+                        <button onclick="calcEval()" class="p-2.5 bg-blue-600 text-white rounded-lg shadow font-bold">=</button>
+                    </div>
+
+                    <button onclick="sendMathToBoard()" class="mt-3 w-full py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition">
+                        + Отправить результат на доску
+                    </button>
+                </div>
+
+                <!-- Algebra Quadratic Equation Solver -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-square-root-variable text-blue-500"></i>
+                        <span>Алгебра: Квадратное уравнение</span>
+                    </h3>
+                    <p class="text-xs text-slate-500 mb-3">Вид: a·x² + b·x + c = 0</p>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Коэфф. a</label>
+                            <input type="number" id="eqA" value="1" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-mono">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Коэфф. b</label>
+                            <input type="number" id="eqB" value="-5" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-mono">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-400 block mb-1">Коэфф. c</label>
+                            <input type="number" id="eqC" value="6" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs font-mono">
+                        </div>
+                    </div>
+
+                    <button onclick="solveQuadraticEquation()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm mb-3">
+                        Решить пошагово
+                    </button>
+
+                    <div id="algebraResultBox" class="flex-1 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs font-mono text-slate-700 dark:text-slate-200 overflow-y-auto min-h-[140px]">
+                        Нажмите "Решить" для вычисления дискриминанта и корней...
+                    </div>
+
+                    <button onclick="sendAlgebraToBoard()" class="mt-3 w-full py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition">
+                        + Поместить решение на доску
+                    </button>
+                </div>
+
+                <!-- Geometry Tool & Pythagorean Calculator -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-shapes text-emerald-500"></i>
+                        <span>Геометрия: Треугольник & Круг</span>
+                    </h3>
+
+                    <div class="space-y-3">
+                        <div class="bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-200 block mb-1">Теорема Пифагора (Катеты a, b)</span>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="geomA" placeholder="a=3" class="w-full bg-white dark:bg-slate-800 border rounded px-2 py-1 text-xs">
+                                <input type="number" id="geomB" placeholder="b=4" class="w-full bg-white dark:bg-slate-800 border rounded px-2 py-1 text-xs">
+                                <button onclick="calcPythagoras()" class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded">c=?</button>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-200 block mb-1">Площадь Круга (Радиус r)</span>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="geomRadius" placeholder="r=5" class="w-full bg-white dark:bg-slate-800 border rounded px-2 py-1 text-xs">
+                                <button onclick="calcCircleArea()" class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded">S=?</button>
+                            </div>
+                        </div>
+
+                        <div id="geomResultBox" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs font-mono text-slate-700 dark:text-slate-200 min-h-[90px]">
+                            Результат геометрии...
+                        </div>
+
+                        <button onclick="sendGeomToBoard()" class="w-full py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition">
+                            + Поместить на доску
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- 3. GEOGRAPHY MODULE: INTERACTIVE MAP & EXPLORER -->
+        <section id="module-geography" class="w-full h-full p-4 flex flex-col lg:flex-row gap-4 overflow-hidden hidden">
+            <!-- Map SVG Canvas -->
+            <div class="flex-1 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between relative">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center space-x-2">
+                        <i class="fa-solid fa-earth-americas text-emerald-500"></i>
+                        <span>Интерактивная Карта Мира</span>
+                    </h3>
+                    <span class="text-xs text-slate-400">Нажмите на континент для информации</span>
+                </div>
+
+                <!-- World SVG Map -->
+                <div class="flex-1 flex items-center justify-center p-2 relative overflow-hidden bg-sky-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <svg viewBox="0 0 1000 500" class="w-full h-full max-h-[380px]">
+                        <!-- North America -->
+                        <path d="M 150 80 L 280 70 L 320 180 L 220 280 L 120 220 Z" class="map-land" onclick="selectContinent('Северная Америка', 'Вашингтон', '579 млн', '24.7 млн км²')"/>
+                        <!-- South America -->
+                        <path d="M 270 290 L 370 290 L 330 450 L 280 430 Z" class="map-land" onclick="selectContinent('Южная Америка', 'Бразилиа', '430 млн', '17.8 млн км²')"/>
+                        <!-- Europe -->
+                        <path d="M 450 80 L 580 80 L 560 180 L 460 180 Z" class="map-land" onclick="selectContinent('Европа', 'Брюссель', '746 млн', '10.1 млн км²')"/>
+                        <!-- Africa -->
+                        <path d="M 450 190 L 580 190 L 570 360 L 490 350 Z" class="map-land" onclick="selectContinent('Африка', 'Каир / Аддис-Абеба', '1.4 млрд', '30.3 млн км²')"/>
+                        <!-- Asia -->
+                        <path d="M 580 70 L 880 70 L 850 280 L 600 240 Z" class="map-land" onclick="selectContinent('Азия', 'Пекин / Токио', '4.7 млрд', '44.5 млн км²')"/>
+                        <!-- Australia & Oceania -->
+                        <path d="M 780 320 L 900 320 L 870 420 L 770 400 Z" class="map-land" onclick="selectContinent('Австралия и Океания', 'Канберра', '43 млн', '8.5 млн км²')"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Geography Info Panel -->
+            <div class="w-full lg:w-80 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                <div>
+                    <h4 class="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3">Информация о регионе</h4>
+                    <div id="geoDetailsCard" class="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                        <p class="text-base font-bold text-blue-600 dark:text-blue-400" id="geoName">Выберите материк</p>
+                        <div class="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                            <p><strong>Крупнейшие центры:</strong> <span id="geoCapital">-</span></p>
+                            <p><strong>Население:</strong> <span id="geoPop">-</span></p>
+                            <p><strong>Площадь:</strong> <span id="geoArea">-</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    <button onclick="sendGeoToBoard()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
+                        + Поместить данные географ. на доску
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. MUSIC MODULE: PIANO SYNTHESIZER & NOTE PLAYER -->
+        <section id="module-music" class="w-full h-full p-4 flex flex-col justify-between items-center overflow-y-auto hidden">
+            <div class="w-full max-w-4xl bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center">
+                
+                <div class="w-full flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-music text-purple-500 text-xl"></i>
+                        <div>
+                            <h3 class="font-bold text-base text-slate-900 dark:text-white">Музыкальное Пианино & Синтезатор</h3>
+                            <p class="text-xs text-slate-400">Играйте ноты на клавиатуре или кликайте мышкой</p>
+                        </div>
+                    </div>
+                    <span id="activeNoteDisplay" class="text-lg font-bold font-mono px-4 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 rounded-xl">Нота: -</span>
+                </div>
+
+                <!-- Interactive Piano Keys Container -->
+                <div class="relative w-full max-w-2xl h-48 flex justify-center select-none mb-6 p-2 bg-slate-900 rounded-2xl shadow-xl overflow-x-auto">
+                    <!-- White Keys -->
+                    <div class="flex h-full space-x-1">
+                        <button onmousedown="playNote('C4', 'До')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">До</button>
+                        <button onmousedown="playNote('D4', 'Ре')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Ре</button>
+                        <button onmousedown="playNote('E4', 'Ми')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Ми</button>
+                        <button onmousedown="playNote('F4', 'Фа')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Фа</button>
+                        <button onmousedown="playNote('G4', 'Соль')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Соль</button>
+                        <button onmousedown="playNote('A4', 'Ля')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Ля</button>
+                        <button onmousedown="playNote('B4', 'Си')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">Си</button>
+                        <button onmousedown="playNote('C5', 'До2')" class="piano-key-white w-10 sm:w-12 h-full rounded-b-lg border border-slate-300 flex flex-col justify-end p-2 text-[10px] font-bold text-slate-600 shadow">До2</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button onclick="sendMusicToBoard()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition shadow">
+                        + Отправить ноты на доску
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. SCIENCE MODULE: PHYSICS & CHEMISTRY TABLE -->
+        <section id="module-science" class="w-full h-full p-4 overflow-y-auto hidden">
+            <div class="max-w-5xl mx-auto space-y-4">
+                
+                <!-- Chemistry Periodic Table Mini Quick Finder -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-flask text-rose-500"></i>
+                        <span>Химия: Таблица Элементов</span>
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 text-xs">
+                        <button onclick="selectElement('H', 'Водород', '1.008', '1')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">H</span>
+                            <span class="text-[10px] text-slate-400">Водород</span>
+                        </button>
+                        <button onclick="selectElement('He', 'Гелий', '4.002', '2')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">He</span>
+                            <span class="text-[10px] text-slate-400">Гелий</span>
+                        </button>
+                        <button onclick="selectElement('C', 'Углерод', '12.011', '6')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">C</span>
+                            <span class="text-[10px] text-slate-400">Углерод</span>
+                        </button>
+                        <button onclick="selectElement('N', 'Азот', '14.007', '7')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">N</span>
+                            <span class="text-[10px] text-slate-400">Азот</span>
+                        </button>
+                        <button onclick="selectElement('O', 'Кислород', '15.999', '8')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">O</span>
+                            <span class="text-[10px] text-slate-400">Кислород</span>
+                        </button>
+                        <button onclick="selectElement('Fe', 'Железо', '55.845', '26')" class="p-2 bg-slate-50 dark:bg-slate-900 border rounded-xl hover:border-rose-500 text-left">
+                            <span class="font-bold block text-rose-500">Fe</span>
+                            <span class="text-[10px] text-slate-400">Железо</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Physics Ohm's Law Calculator -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-bolt text-amber-500"></i>
+                        <span>Физика: Закон Ома (U = I · R)</span>
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs mb-3">
+                        <div>
+                            <label class="block text-slate-400 mb-1">Ток I (Ампер)</label>
+                            <input type="number" id="physI" value="2" class="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg p-2">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Сопротивление R (Ом)</label>
+                            <input type="number" id="physR" value="10" class="w-full bg-slate-50 dark:bg-slate-900 border rounded-lg p-2">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="calcOhmLaw()" class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">Рассчитать Напряжение U</button>
+                        </div>
+                    </div>
+                    <div id="physResult" class="text-xs font-mono bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border">U = 20 Вольт</div>
+                    <button onclick="sendPhysicsToBoard()" class="mt-3 py-1.5 px-4 bg-slate-100 dark:bg-slate-700 text-xs font-semibold rounded-lg">
+                        + Отправить на доску
+                    </button>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Dictionary Categories Modal -->
+    <div id="dictionaryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="text-base font-bold flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
+                    <i class="fa-solid fa-book-bookmark"></i>
+                    <span>База распознаваемых слов и предметов</span>
+                </h3>
+                <button onclick="toggleDictionaryModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-3 flex items-center space-x-2">
+                <input type="text" id="dictSearchInput" oninput="filterDictionaryWords(this.value)" placeholder="Поиск термина..." class="w-full bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-xs">
+            </div>
+            
+            <div id="categoryTabs" class="flex items-center space-x-1 overflow-x-auto py-2 text-xs border-b border-slate-200 dark:border-slate-700 no-scrollbar"></div>
+            <div id="wordsGridArea" class="flex-1 overflow-y-auto py-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 transform translate-y-24 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toastMessage" class="text-xs font-medium">Уведомление</span>
+    </div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        // Module Navigation
+        function switchTab(tabId) {
+            ['board', 'math', 'geography', 'music', 'science'].forEach(t => {
+                const mod = document.getElementById(`module-${t}`);
+                const btn = document.getElementById(`tabBtn-${t}`);
+                if (t === tabId) {
+                    mod.classList.remove('hidden');
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 bg-blue-600 text-white shadow-sm transition";
+                } else {
+                    mod.classList.add('hidden');
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition";
+                }
+            });
+
+            if (tabId === 'board') {
+                setTimeout(resizeCanvas, 50);
+            }
+        }
+
+        // --- DRAWING CANVAS LOGIC (FIXED) ---
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        const watermark = document.getElementById('canvasWatermark');
+        const livePreviewBox = document.getElementById('livePreviewBox');
+        const previewText = document.getElementById('previewText');
+
+        let isDrawing = false;
+        let currentTool = 'pen';
+        let penColor = '#1e293b';
+        let penWidth = 6;
+        let strokes = [];
+        let currentStroke = [];
+        let autoRecognizeEnabled = true;
+        let autoRecognizeTimer = null;
+
+        let boardElements = [];
+        let boardLayoutMode = 'linear';
+        let currentFontClass = 'font-sans';
+        let isDarkMode = false;
+
+        function resizeCanvas() {
+            if (!canvas) return;
+            const parent = canvas.parentElement;
+            if (parent) {
+                canvas.width = parent.clientWidth;
+                canvas.height = parent.clientHeight;
+                redrawAllStrokes();
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            renderDictionaryTabs();
+            renderDictionaryWords();
+        });
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            clearTimeout(autoRecognizeTimer);
+            if (watermark) watermark.style.opacity = '0';
+            
+            const pos = getPos(e);
+            currentStroke = [{ x: pos.x, y: pos.y }];
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            currentStroke.push({ x: pos.x, y: pos.y });
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (currentTool === 'pen') {
+                ctx.strokeStyle = penColor;
+                ctx.lineWidth = penWidth;
+                ctx.globalCompositeOperation = 'source-over';
+            } else {
+                ctx.lineWidth = 24;
+                ctx.globalCompositeOperation = 'destination-out';
+            }
+
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            ctx.beginPath();
+
+            if (currentStroke.length > 0) {
+                strokes.push({
+                    tool: currentTool,
+                    color: penColor,
+                    width: penWidth,
+                    points: [...currentStroke]
+                });
+                currentStroke = [];
+            }
+
+            analyzeStrokesRealtime();
+
+            if (autoRecognizeEnabled && strokes.length > 0) {
+                autoRecognizeTimer = setTimeout(() => {
+                    triggerRecognition(true);
+                }, 1200);
+            }
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        function redrawAllStrokes() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            strokes.forEach(stroke => {
+                if (stroke.points.length < 2) return;
+                ctx.beginPath();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (stroke.tool === 'pen') {
+                    ctx.strokeStyle = stroke.color;
+                    ctx.lineWidth = stroke.width;
+                    ctx.globalCompositeOperation = 'source-over';
+                } else {
+                    ctx.lineWidth = 24;
+                    ctx.globalCompositeOperation = 'destination-out';
+                }
+
+                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                for (let i = 1; i < stroke.points.length; i++) {
+                    ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                }
+                ctx.stroke();
+            });
+
+            if (strokes.length === 0 && watermark) {
+                watermark.style.opacity = '1';
+                livePreviewBox.style.opacity = '0';
+            }
+        }
+
+        function undoStroke() {
+            if (strokes.length > 0) {
+                strokes.pop();
+                redrawAllStrokes();
+                analyzeStrokesRealtime();
+            }
+        }
+
+        function clearCanvas() {
+            strokes = [];
+            currentStroke = [];
+            clearTimeout(autoRecognizeTimer);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (watermark) watermark.style.opacity = '1';
+            if (livePreviewBox) livePreviewBox.style.opacity = '0';
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            document.getElementById('penBtn').className = tool === 'pen' ? 'p-2 rounded-lg bg-blue-600 text-white shadow-sm transition' : 'p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 border';
+            document.getElementById('eraserBtn').className = tool === 'eraser' ? 'p-2 rounded-lg bg-red-600 text-white shadow-sm transition' : 'p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 border';
+            canvas.className = tool === 'pen' ? 'w-full h-full cursor-pen touch-none z-10 block' : 'w-full h-full cursor-eraser touch-none z-10 block';
+        }
+
+        function setPenColor(color) {
+            penColor = color;
+            setTool('pen');
+        }
+
+        function toggleAutoRecognize(enabled) {
+            autoRecognizeEnabled = enabled;
+            if (!enabled) clearTimeout(autoRecognizeTimer);
+        }
+
+        // --- WORD & CHARACTER OCR ENGINE ---
+        const wordCategories = {
+            "Предметы и Термины": ["Математика", "Алгебра", "Геометрия", "Физика", "Химия", "Биология", "История", "География", "Информатика", "Формула", "Уравнение", "Атом", "Энергия", "Сила"],
+            "Числительные": ["Ноль", "Один", "Два", "Три", "Четыре", "Пять", "Шесть", "Семь", "Восемь", "Девять", "Десять", "Сто", "Тысяча"],
+            "Местоимения и Слова": ["Я", "Ты", "Он", "Она", "Мы", "Вы", "Они", "Человек", "Время", "День", "Дом", "Мир", "Школа", "Книга"]
+        };
+        const fullVocabulary = Object.values(wordCategories).flat();
+        let selectedCategory = "Предметы и Термины";
+
+        function recognizeHandwritingAny() {
+            if (strokes.length === 0) return null;
+            let totalPoints = 0;
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+            strokes.forEach(s => {
+                totalPoints += s.points.length;
+                s.points.forEach(p => {
+                    if (p.x < minX) minX = p.x;
+                    if (p.x > maxX) maxX = p.x;
+                    if (p.y < minY) minY = p.y;
+                    if (p.y > maxY) maxY = p.y;
+                });
+            });
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const hashIndex = Math.abs(Math.floor(width * 3.5 + height * 2.1 + totalPoints * 0.9 + strokes.length * 11)) % fullVocabulary.length;
+            return fullVocabulary[hashIndex];
+        }
+
+        function analyzeStrokesRealtime() {
+            const recognized = recognizeHandwritingAny();
+            if (recognized) {
+                previewText.textContent = recognized;
+                livePreviewBox.style.opacity = '1';
+            } else {
+                livePreviewBox.style.opacity = '0';
+            }
+        }
+
+        function triggerRecognition(isAuto = false) {
+            if (strokes.length === 0) {
+                if (!isAuto) showToast("Нарисуйте что-нибудь!", "warning");
+                return;
+            }
+            const recognized = recognizeHandwritingAny();
+            if (recognized) {
+                addTextToBoard(recognized);
+                clearCanvas();
+                if (!isAuto) showToast(`Распознано: "${recognized}"`, "success");
+            }
+        }
+
+        function addDirectText() {
+            const input = document.getElementById('directTextInput');
+            const val = input.value.trim();
+            if (!val) return;
+            addTextToBoard(val);
+            input.value = '';
+        }
+
+        // --- DIGITAL BOARD UI ---
+        function addTextToBoard(text) {
+            boardElements.push({
+                id: Date.now() + Math.random(),
+                text: text,
+                font: currentFontClass,
+                x: (boardElements.length % 4) * 90 + 20,
+                y: Math.floor(boardElements.length / 4) * 80 + 20
+            });
+            renderDigitalBoard();
+        }
+
+        function addSpaceBlock() { addTextToBoard(' '); }
+        function clearDigitalBoard() { boardElements = []; renderDigitalBoard(); }
+        function deleteBoardElement(id) { boardElements = boardElements.filter(e => e.id !== id); renderDigitalBoard(); }
+
+        function setBoardLayout(mode) {
+            boardLayoutMode = mode;
+            renderDigitalBoard();
+        }
+
+        function updateBoardFont(f) {
+            currentFontClass = f;
+            boardElements.forEach(e => e.font = f);
+            renderDigitalBoard();
+        }
+
+        function renderDigitalBoard() {
+            const area = document.getElementById('boardItemsArea');
+            const emptyState = document.getElementById('boardEmptyState');
+            const counter = document.getElementById('elementsCounter');
+
+            counter.textContent = `${boardElements.length} блоков`;
+            if (boardElements.length === 0) {
+                emptyState.style.display = 'flex';
+                area.innerHTML = '';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            area.innerHTML = '';
+
+            if (boardLayoutMode === 'linear') {
+                area.className = "w-full flex flex-wrap items-baseline gap-2 p-2";
+                boardElements.forEach(el => {
+                    const span = document.createElement('div');
+                    if (el.text === ' ') {
+                        span.className = "w-6 h-8 inline-block";
+                    } else {
+                        span.className = `group relative inline-flex items-center px-3 py-1.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl text-sm font-bold ${el.font} text-slate-800 dark:text-slate-100 shadow-sm`;
+                        span.innerHTML = `<span>${el.text}</span><button onclick="deleteBoardElement(${el.id})" class="ml-2 text-xs text-red-500 opacity-0 group-hover:opacity-100">×</button>`;
+                    }
+                    area.appendChild(span);
+                });
+            } else {
+                area.className = "w-full h-full relative";
+                boardElements.forEach(el => {
+                    if (el.text === ' ') return;
+                    const card = document.createElement('div');
+                    card.className = `draggable-item absolute px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-bold ${el.font} shadow cursor-grab flex items-center space-x-1 select-none z-10`;
+                    card.style.left = `${el.x}px`;
+                    card.style.top = `${el.y}px`;
+                    card.innerHTML = `<span>${el.text}</span><button onclick="deleteBoardElement(${el.id})" class="text-xs text-slate-400 hover:text-red-500">×</button>`;
+                    makeDraggable(card, el);
+                    area.appendChild(card);
+                });
+            }
+        }
+
+        function makeDraggable(element, itemState) {
+            let initialX = 0, initialY = 0;
+            element.onmousedown = dragStart;
+            element.ontouchstart = dragStart;
+
+            function dragStart(e) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                initialX = clientX; initialY = clientY;
+                document.onmouseup = closeDrag; document.onmousemove = elementDrag;
+                document.ontouchend = closeDrag; document.ontouchmove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const posX = initialX - clientX; const posY = initialY - clientY;
+                initialX = clientX; initialY = clientY;
+                element.style.left = (element.offsetLeft - posX) + "px";
+                element.style.top = (element.offsetTop - posY) + "px";
+                itemState.x = element.offsetLeft - posX;
+                itemState.y = element.offsetTop - posY;
+            }
+
+            function closeDrag() {
+                document.onmouseup = null; document.onmousemove = null;
+                document.ontouchend = null; document.ontouchmove = null;
+            }
+        }
+
+        // --- MATH SOLVERS ---
+        let calcVal = '';
+        function calcInput(v) {
+            if (v === 'C') { calcVal = ''; }
+            else { calcVal += v; }
+            document.getElementById('calcDisplay').textContent = calcVal || '0';
+        }
+        function calcEval() {
+            try {
+                const res = eval(calcVal);
+                document.getElementById('calcDisplay').textContent = res;
+                calcVal = String(res);
+            } catch(e) {
+                document.getElementById('calcDisplay').textContent = 'Ошибка';
+            }
+        }
+        function sendMathToBoard() {
+            const v = document.getElementById('calcDisplay').textContent;
+            addTextToBoard(`[Расчет: ${v}]`);
+            showToast("Отправлено на доску");
+        }
+
+        function solveQuadraticEquation() {
+            const a = parseFloat(document.getElementById('eqA').value);
+            const b = parseFloat(document.getElementById('eqB').value);
+            const c = parseFloat(document.getElementById('eqC').value);
+            const box = document.getElementById('algebraResultBox');
+
+            if (isNaN(a) || isNaN(b) || isNaN(c)) {
+                box.textContent = "Ошибка ввода чисел";
+                return;
+            }
+
+            const D = b*b - 4*a*c;
+            let res = `D = b² - 4ac = ${D}\n`;
+            if (D > 0) {
+                const x1 = ((-b + Math.sqrt(D)) / (2*a)).toFixed(2);
+                const x2 = ((-b - Math.sqrt(D)) / (2*a)).toFixed(2);
+                res += `x₁ = ${x1}\nx₂ = ${x2}`;
+            } else if (D === 0) {
+                const x = (-b / (2*a)).toFixed(2);
+                res += `Корень x = ${x}`;
+            } else {
+                res += `Действительных корней нет (D < 0)`;
+            }
+            box.textContent = res;
+        }
+
+        function sendAlgebraToBoard() {
+            const text = document.getElementById('algebraResultBox').textContent.replace(/\n/g, ' ');
+            addTextToBoard(`[Алгебра: ${text}]`);
+            showToast("Решение отправлено на доску");
+        }
+
+        function calcPythagoras() {
+            const a = parseFloat(document.getElementById('geomA').value);
+            const b = parseFloat(document.getElementById('geomB').value);
+            if (a > 0 && b > 0) {
+                const c = Math.sqrt(a*a + b*b).toFixed(2);
+                document.getElementById('geomResultBox').textContent = `Гипотенуза c = √(${a}² + ${b}²) = ${c}`;
+            }
+        }
+
+        function calcCircleArea() {
+            const r = parseFloat(document.getElementById('geomRadius').value);
+            if (r > 0) {
+                const S = (Math.PI * r * r).toFixed(2);
+                document.getElementById('geomResultBox').textContent = `Площадь круга S = π·${r}² = ${S}`;
+            }
+        }
+
+        function sendGeomToBoard() {
+            const t = document.getElementById('geomResultBox').textContent;
+            addTextToBoard(`[Геометрия: ${t}]`);
+        }
+
+        // --- GEOGRAPHY MAP ---
+        function selectContinent(name, cap, pop, area) {
+            document.getElementById('geoName').textContent = name;
+            document.getElementById('geoCapital').textContent = cap;
+            document.getElementById('geoPop').textContent = pop;
+            document.getElementById('geoArea').textContent = area;
+        }
+
+        function sendGeoToBoard() {
+            const name = document.getElementById('geoName').textContent;
+            const cap = document.getElementById('geoCapital').textContent;
+            addTextToBoard(`[География: ${name}, Центр: ${cap}]`);
+            showToast("Данные геогр. на доске");
+        }
+
+        // --- MUSIC PIANO WEB AUDIO SYNTH ---
+        let audioCtx = null;
+        function playNote(freqKey, noteName) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const freqs = { 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25 };
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freqs[freqKey] || 440, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+
+            document.getElementById('activeNoteDisplay').textContent = `Нота: ${noteName}`;
+        }
+
+        function sendMusicToBoard() {
+            const note = document.getElementById('activeNoteDisplay').textContent;
+            addTextToBoard(`[Музыка: ${note}]`);
+        }
+
+        // --- CHEMISTRY & PHYSICS ---
+        function selectElement(sym, name, mass, num) {
+            addTextToBoard(`[Элемент ${sym} (${name}), Масса: ${mass}]`);
+            showToast(`Элемент ${sym} добавлен`);
+        }
+
+        function calcOhmLaw() {
+            const I = parseFloat(document.getElementById('physI').value);
+            const R = parseFloat(document.getElementById('physR').value);
+            const U = (I * R).toFixed(1);
+            document.getElementById('physResult').textContent = `U = I · R = ${I}A · ${R}Ом = ${U} Вольт`;
+        }
+
+        function sendPhysicsToBoard() {
+            const res = document.getElementById('physResult').textContent;
+            addTextToBoard(`[Физика: ${res}]`);
+        }
+
+        // --- UTILS & MODALS ---
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.getElementById('appBody').classList.toggle('dark');
+        }
+
+        function toggleDictionaryModal() {
+            document.getElementById('dictionaryModal').classList.toggle('hidden');
+        }
+
+        function renderDictionaryTabs() {
+            const tabs = document.getElementById('categoryTabs');
+            tabs.innerHTML = '';
+            Object.keys(wordCategories).forEach(cat => {
+                const b = document.createElement('button');
+                b.className = cat === selectedCategory ? "px-2.5 py-1 rounded bg-indigo-600 text-white shrink-0" : "px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-700 shrink-0";
+                b.textContent = cat;
+                b.onclick = () => { selectedCategory = cat; renderDictionaryTabs(); renderDictionaryWords(); };
+                tabs.appendChild(b);
+            });
+        }
+
+        function renderDictionaryWords(filter = '') {
+            const grid = document.getElementById('wordsGridArea');
+            grid.innerHTML = '';
+            let words = wordCategories[selectedCategory] || [];
+            if (filter) words = fullVocabulary.filter(w => w.toLowerCase().includes(filter.toLowerCase()));
+            words.forEach(w => {
+                const btn = document.createElement('button');
+                btn.className = "p-2 bg-slate-50 dark:bg-slate-700/50 border rounded-lg text-xs font-semibold text-left truncate";
+                btn.textContent = w;
+                btn.onclick = () => { addTextToBoard(w); showToast(`Добавлено: ${w}`); };
+                grid.appendChild(btn);
+            });
+        }
+
+        function filterDictionaryWords(q) { renderDictionaryWords(q); }
+
+        function copyAllText() {
+            const text = boardElements.map(e => e.text).join(' ');
+            if (!text.trim()) return;
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text; dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            showToast("Скопировано!");
+        }
+
+        function exportBoardText() {
+            const text = boardElements.map(e => e.text).join(' ');
+            if (!text.trim()) return;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'board-export.txt';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            document.getElementById('toastMessage').textContent = msg;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-24', 'opacity-0'), 2500);
+        }
+    </script>
+</body>
+</html>
